@@ -1,0 +1,35 @@
+version: '3'
+
+tasks:
+  default:
+    cmds:
+      - task: compile
+      - task: test
+      - task: lint
+
+  test:
+    summary: Runs go tests
+    cmds:
+      - cmd: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+
+  coverage:
+    summary: Displays coverage report in HTML
+    deps: [test]
+    cmds:
+      - cmd: go tool cover -html=coverage.out
+    sources:
+      - coverage.out
+
+  check-coverage:
+    summary: Verifies coverage meets the target requirement (currently >= 60%)
+    deps: [test]
+    cmds:
+      - task: check-coverage-no-deps
+
+  lint:
+    summary: Runs go formatting, linting and vetting tools
+    cmds:
+      - cmd: go fmt ./...
+      - cmd: go mod tidy
+      - cmd: go vet ./...
+      - cmd: golangci-lint --timeout=3m run

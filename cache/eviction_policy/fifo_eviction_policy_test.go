@@ -18,7 +18,7 @@ func TestFIFOEvictionPolicy(t *testing.T) {
 	cacheInstance.Set("key6", "value6", 5*time.Minute)
 
 	_, err := cacheInstance.Get("key1")
-	assert.Error(t, err) // key1 should be evicted first
+	assert.Error(t, err)
 
 	value, err := cacheInstance.Get("key6")
 	assert.NoError(t, err)
