@@ -1,8 +1,6 @@
-package cache
+package structs
 
-import (
-	"container/list"
-)
+import "container/list"
 
 type EvictionPolicy interface {
 	Access(key string) *list.Element

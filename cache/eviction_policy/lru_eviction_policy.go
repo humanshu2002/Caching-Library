@@ -1,7 +1,9 @@
-package cache
+package eviction_policy
 
 import (
 	"container/list"
+
+	"github.com/humanshu2002/Caching-Library/structs"
 )
 
 type LRUEvictionPolicy struct {
@@ -29,7 +31,7 @@ func (p *LRUEvictionPolicy) Access(key string) *list.Element {
 func (p *LRUEvictionPolicy) Evict() string {
 	elem := p.list.Back()
 	if elem != nil {
-		key := elem.Value.(string)
+		key := elem.Value.(*structs.CacheItem).Key
 		delete(p.queue, key)
 		p.list.Remove(elem)
 		return key

@@ -1,7 +1,9 @@
-package cache
+package eviction_policy
 
 import (
 	"container/list"
+
+	"github.com/humanshu2002/Caching-Library/structs"
 )
 
 type FIFOEvictionPolicy struct {
@@ -21,7 +23,7 @@ func (p *FIFOEvictionPolicy) Access(key string) *list.Element {
 func (p *FIFOEvictionPolicy) Evict() string {
 	elem := p.queue.Front()
 	if elem != nil {
-		key := elem.Value.(string)
+		key := elem.Value.(*structs.CacheItem).Key
 		p.queue.Remove(elem)
 		return key
 	}
@@ -30,7 +32,7 @@ func (p *FIFOEvictionPolicy) Evict() string {
 
 func (p *FIFOEvictionPolicy) Remove(key string) {
 	for e := p.queue.Front(); e != nil; e = e.Next() {
-		if e.Value.(string) == key {
+		if e.Value.(*structs.CacheItem).Key == key {
 			p.queue.Remove(e)
 			break
 		}

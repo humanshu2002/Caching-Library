@@ -5,71 +5,78 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/humanshu2002/Caching-Library/structs"
 )
 
-type Cache interface {
-	Set(key string, value interface{}, ttl time.Duration)
-	Get(key string) (interface{}, error)
-	Delete(key string)
-}
-
-type CacheImpl struct {
+type Cache struct {
+	evictionPolicy structs.EvictionPolicy
 	items          map[string]*list.Element
-	evictionPolicy EvictionPolicy
+	capacity       int
 	mu             sync.Mutex
 	ttl            time.Duration
 }
 
-func NewCache(policy EvictionPolicy, ttl time.Duration) *CacheImpl {
-	return &CacheImpl{
+func NewCache(evictionPolicy structs.EvictionPolicy, ttl time.Duration, capacity int) *Cache {
+	return &Cache{
+		evictionPolicy: evictionPolicy,
 		items:          make(map[string]*list.Element),
-		evictionPolicy: policy,
+		capacity:       capacity,
 		ttl:            ttl,
 	}
 }
 
-func (c *CacheImpl) Set(key string, value interface{}, ttl time.Duration) {
+func (c *Cache) Set(key string, value interface{}, ttl time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if elem, found := c.items[key]; found {
-		c.evictionPolicy.Remove(key)
+	if elem, ok := c.items[key]; ok {
 		c.evictionPolicy.Access(key)
-		elem.Value.(*CacheItem).Value = value
-		elem.Value.(*CacheItem).ExpireAt = time.Now().Add(ttl)
+		cacheItem := elem.Value.(*structs.CacheItem)
+		cacheItem.Value = value
+		cacheItem.Expiration = time.Now().Add(ttl).UnixNano()
 		return
 	}
 
-	item := &CacheItem{
-		Key:      key,
-		Value:    value,
-		ExpireAt: time.Now().Add(ttl),
+	if len(c.items) >= c.capacity {
+		evictedKey := c.evictionPolicy.Evict()
+		if evictedKey != "" {
+			delete(c.items, evictedKey)
+		}
+	}
+
+	cacheItem := &structs.CacheItem{
+		Key:        key,
+		Value:      value,
+		Expiration: time.Now().Add(ttl).UnixNano(),
 	}
 	elem := c.evictionPolicy.Access(key)
 	c.items[key] = elem
-	elem.Value = item
+	elem.Value = cacheItem
 }
 
-func (c *CacheImpl) Get(key string) (interface{}, error) {
+func (c *Cache) Get(key string) (interface{}, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if elem, found := c.items[key]; found {
-		item := elem.Value.(*CacheItem)
-		if item.ExpireAt.After(time.Now()) {
-			c.evictionPolicy.Access(key)
-			return item.Value, nil
+	if elem, ok := c.items[key]; ok {
+		cacheItem := elem.Value.(*structs.CacheItem)
+		if cacheItem.IsExpired() {
+			c.evictionPolicy.Remove(key)
+			delete(c.items, key)
+			return nil, errors.New("item has expired")
 		}
-		c.Delete(key)
+		c.evictionPolicy.Access(key)
+		return cacheItem.Value, nil
 	}
-	return nil, errors.New("key not found")
+	return nil, errors.New("item not found")
 }
 
-func (c *CacheImpl) Delete(key string) {
+func (c *Cache) Delete(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if _, found := c.items[key]; found {
+	if _, ok := c.items[key]; ok {
 		c.evictionPolicy.Remove(key)
 		delete(c.items, key)
 	}
